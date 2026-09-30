@@ -1,0 +1,42 @@
+Especifica el primer incremento funcional de TaskControl: gestión básica de
+tareas con autenticación de usuarios. Este incremento cubre HU-01 a HU-04 y
+HU-12–HU-13 del backlog del proyecto.
+Alcance funcional:
+1. Registro de usuario (HU-12): un usuario nuevo se registra con correo y
+   contraseña. La contraseña se almacena con hash, nunca en texto plano. Se
+   valida formato de correo y unicidad (no se permite registrar el mismo
+   correo dos veces).
+2. Inicio y cierre de sesión (HU-13): un usuario registrado inicia sesión con
+   correo y contraseña, y puede cerrar sesión. Toda ruta que modifique tareas
+   verifica sesión activa en el backend — no basta con ocultar botones en el
+   frontend.
+3. Creación de tareas (HU-01): un usuario autenticado crea una tarea con
+   título (obligatorio, no vacío), descripción (opcional) y fecha límite
+   (opcional). La tarea se crea con estado inicial "pendiente". Se registra el
+   actor y el timestamp de creación en un log de auditoría.
+4. Listado de tareas (HU-02): un usuario ve el listado de sus propias tareas,
+   mostrando título, estado y fecha límite. El listado se puede filtrar por
+   estado. Solo aparecen tareas del usuario autenticado — nunca tareas de
+   otros usuarios.
+5. Cambio de estado (HU-03): un usuario cambia el estado de una tarea entre
+   pendiente, en progreso y completada. Las transiciones válidas están
+   explícitamente definidas; no se puede pasar de "completada" a "pendiente"
+   sin una transición explícita de reapertura (esa transición de reapertura
+   queda fuera de este incremento — se especifica en un incremento posterior
+   junto con HU-06). Cada cambio de estado queda registrado en el log de
+   auditoría.
+6. Edición de tareas (HU-04): un usuario edita título, descripción o fecha
+   límite de una tarea propia existente. No se permite editar una tarea
+   eliminada. Los cambios se validan con las mismas reglas que la creación.
+Fuera de alcance explícito de este incremento (se especifican después):
+eliminación de tareas (HU-05), reapertura de tareas completadas (HU-06),
+prioridad y categorías (HU-07, HU-08), indicación de tareas vencidas (HU-09),
+asignación y notificaciones (HU-10, HU-11), recuperación de contraseña
+(HU-14), interacción sin recarga de página y drag-and-drop (HU-15, HU-16).
+Esta especificación debe ser consistente con la constitución del proyecto:
+Flask como único framework backend, separación entre modelos, servicios,
+rutas y presentación, contrato de endpoints documentado antes de
+implementarse, pruebas automatizadas en rojo antes de implementar la lógica
+de dominio, validación y sanitización de toda entrada en el backend
+independientemente del frontend, y registro estructurado de toda operación
+que modifique el estado de una tarea.

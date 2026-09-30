@@ -1,0 +1,54 @@
+Crea la constitución del proyecto TaskControl, una aplicación de control de tareas
+construida con arquitectura monolítica: backend en Python con Flask, y JavaScript
+del lado del cliente para interactividad, sin frontend framework pesado por defecto.
+
+Toma como referencia el backlog del proyecto en .specify/memory/backlog.md para
+mantener consistencia de alcance y numeración de historias (HU-XX) con el resto
+del roadmap del proyecto.
+
+Los principios que debe fijar la constitución son:
+
+1. Monolito por diseño: un único repositorio, un único proceso desplegable, una
+   única base de datos relacional. No se introducen microservicios ni colas de
+   mensajes salvo que una especificación futura demuestre con evidencia que el
+   monolito no puede sostener un requisito concreto.
+
+2. Separación de responsabilidades dentro del monolito: capas claramente
+   separadas entre modelos de datos, lógica de negocio (servicios), rutas HTTP
+   (blueprints de Flask) y presentación (plantillas Jinja2 + JavaScript).
+   Ninguna capa accede a otra saltándose la inmediatamente inferior.
+
+3. Contrato explícito entre backend y JavaScript: toda interacción cliente-
+   servidor pasa por endpoints HTTP con contrato definido (ruta, método,
+   payload de entrada/salida, códigos de error), documentado antes de
+   implementarse.
+
+4. Test-first para toda la lógica de negocio: creación, transición de estado y
+   eliminación de tareas, reglas de asignación y validaciones se especifican
+   primero como prueba automatizada que debe fallar, luego se implementa el
+   código que la hace pasar. Esto es bloqueante para la capa de dominio.
+
+5. Simplicidad sobre generalidad prematura: ninguna abstracción, capa de
+   configuración o sistema de plugins se introduce sin un requisito ya
+   especificado que lo justifique.
+
+6. Integridad de datos: todo cambio de esquema se hace mediante migraciones
+   versionadas y reproducibles (Flask-Migrate/Alembic), nunca modificaciones
+   manuales directas.
+
+7. Seguridad por defecto: toda entrada de usuario se valida y sanitiza en el
+   backend independientemente de la validación en JavaScript; autenticación y
+   autorización se verifican en cada endpoint que modifique datos; no se
+   almacenan secretos en el repositorio.
+
+8. Observabilidad mínima viable: toda operación que modifique el estado de una
+   tarea queda registrada en un log estructurado con actor, acción, entidad y
+   marca de tiempo, desde el primer incremento funcional.
+
+Incluye también restricciones técnicas del stack: Python 3.11+, Flask como
+único framework web (no se introduce Django, FastAPI ni ningún otro sin
+enmienda de esta constitución), base de datos relacional vía SQLAlchemy como
+ORM, JavaScript sin framework SPA por defecto salvo justificación explícita, y
+entorno levantable con un solo comando. Cierra también una sección de
+gobernanza que defina el procedimiento de enmienda con versionado semántico
+(MAYOR/MENOR/PARCHE).

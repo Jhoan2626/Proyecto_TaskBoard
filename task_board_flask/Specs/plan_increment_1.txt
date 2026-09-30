@@ -1,0 +1,38 @@
+Genera el plan técnico de implementación para el primer incremento de
+TaskControl (registro, login/logout, creación, listado, cambio de estado y
+edición de tareas), siguiendo estrictamente la constitución del proyecto.
+
+El plan debe definir:
+
+1. Estructura de carpetas del monolito, separando modelos, servicios, rutas
+   (blueprints de Flask) y presentación (plantillas + JavaScript), tal como
+   exige el Principio II de la constitución.
+
+2. Modelos de datos con SQLAlchemy: al menos User (correo, hash de
+   contraseña) y Task (título, descripción, fecha límite, estado, usuario
+   propietario, timestamps de auditoría). Indica las relaciones entre ellos.
+
+3. El contrato de cada endpoint HTTP necesario para las 6 historias de este
+   incremento: ruta, método, payload de entrada, payload de salida y códigos
+   de error — según exige el Principio III antes de implementar cualquier
+   ruta.
+
+4. Estrategia de autenticación y manejo de sesión en Flask (verificación de
+   sesión activa en backend en cada endpoint que modifique tareas, no solo
+   en el frontend — Principio VII).
+
+5. Estrategia de migraciones con Flask-Migrate/Alembic para crear el esquema
+   inicial (Principio VI).
+
+6. Estrategia de logging estructurado para el log de auditoría exigido por
+   el Principio VIII: qué campos registra cada evento (actor, acción,
+   entidad, timestamp) y dónde se centraliza esa lógica para no duplicarla
+   en cada ruta.
+
+7. Estrategia de pruebas: qué se prueba a nivel de modelo/servicio (bloqueante
+   según el Principio IV) versus qué se prueba a nivel de ruta HTTP.
+
+No incluyas en el plan nada de las historias fuera de alcance de este
+incremento (eliminación, reapertura, prioridad, categorías, asignación,
+notificaciones, recuperación de contraseña, interacción sin recarga,
+drag-and-drop) — esas se planificarán en incrementos posteriores.

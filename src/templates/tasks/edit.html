@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Tarea{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 1.5rem auto;">
+    <div class="card">
+        <h2 class="card-title">Editar Tarea #{{ task.id }} (HU-04)</h2>
+        <form method="POST" action="{{ url_for('tasks.update_task', task_id=task.id) }}">
+            <div class="form-group">
+                <label for="title" class="form-label">Título de la Tarea <span class="text-danger">*</span></label>
+                <input type="text" id="title" name="title" class="form-control" required value="{{ title if title is not none else task.title }}" maxlength="200">
+                <small class="text-muted">El título no puede quedar vacío.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="description" class="form-label">Descripción (Opcional)</label>
+                <textarea id="description" name="description" class="form-control" rows="4">{{ description if description is not none else (task.description or '') }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="due_date" class="form-label">Fecha Límite (Opcional)</label>
+                <input type="date" id="due_date" name="due_date" class="form-control" value="{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '' }}">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Estado Actual</label>
+                <span class="badge badge-{{ task.status }}">
+                    {% if task.status == 'pending' %}Pendiente
+                    {% elif task.status == 'in_progress' %}En Progreso
+                    {% elif task.status == 'completed' %}Completada
+                    {% endif %}
+                </span>
+                <small class="text-muted" style="display:block; margin-top: 0.25rem;">El estado se gestiona mediante las transiciones del tablero.</small>
+            </div>
+
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                <a href="{{ url_for('tasks.list_tasks') }}" class="btn btn-secondary">Cancelar</a>
+                <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
