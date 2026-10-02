@@ -156,3 +156,39 @@ def change_status(task_id):
 
     flash(f"Estado de la tarea actualizado a '{task.status}'.", "success")
     return redirect(url_for("tasks.list_tasks"))
+
+
+# =============================================================================
+# Incremento 2 — HU-05: Eliminación lógica de tarea
+# =============================================================================
+
+@task_bp.route("/<int:task_id>/delete", methods=["POST"])
+@login_required
+def delete_task(task_id):
+    """Soft-delete de una tarea propia (HU-05)."""
+    task, error = TaskService.delete_task(user_id=g.current_user.id, task_id=task_id)
+
+    if error:
+        flash(error, "danger")
+        return redirect(url_for("tasks.list_tasks"))
+
+    flash("Tarea eliminada.", "success")
+    return redirect(url_for("tasks.list_tasks"))
+
+
+# =============================================================================
+# Incremento 2 — HU-06: Reapertura de tarea completada
+# =============================================================================
+
+@task_bp.route("/<int:task_id>/reopen", methods=["POST"])
+@login_required
+def reopen_task(task_id):
+    """Reabre una tarea completada devolviéndola a in_progress (HU-06)."""
+    task, error = TaskService.reopen_task(user_id=g.current_user.id, task_id=task_id)
+
+    if error:
+        flash(error, "danger")
+        return redirect(url_for("tasks.list_tasks"))
+
+    flash("Tarea reabierta y marcada como en progreso.", "success")
+    return redirect(url_for("tasks.list_tasks"))

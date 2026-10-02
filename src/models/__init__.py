@@ -5,5 +5,6 @@ db = SQLAlchemy()
 from src.models.user import User
 from src.models.task import Task
 from src.models.audit_log import AuditLog
+from src.models.password_reset_token import PasswordResetToken
 
-__all__ = ["db", "User", "Task", "AuditLog"]
+__all__ = ["db", "User", "Task", "AuditLog", "PasswordResetToken"]
