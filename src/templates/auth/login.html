@@ -23,6 +23,9 @@
         <p class="text-center text-muted" style="margin-top: 1.25rem; font-size: 0.9rem;">
             ¿No tienes cuenta? <a href="{{ url_for('auth.register') }}">Regístrate aquí</a>
         </p>
+        <p class="text-center text-muted" style="font-size: 0.85rem;">
+            <a href="{{ url_for('auth.forgot_password') }}">¿Olvidaste tu contraseña?</a>
+        </p>
     </div>
 </div>
 {% endblock %}

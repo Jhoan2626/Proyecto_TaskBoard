@@ -23,6 +23,8 @@ class Task(db.Model):
     status = db.Column(db.String(20), nullable=False, default=STATUS_PENDING)
     created_at = db.Column(db.DateTime, default=get_utc_now, nullable=False)
     updated_at = db.Column(db.DateTime, default=get_utc_now, onupdate=get_utc_now, nullable=False)
+    # Soft delete (HU-05): NULL = activa; timestamp = eliminada lógicamente
+    deleted_at = db.Column(db.DateTime, nullable=True, default=None)
 
     user = db.relationship("User", back_populates="tasks")
 

@@ -182,3 +182,258 @@ def test_update_task_content_and_ownership(app):
         )
         assert edited_foreign is None
         assert "No tiene permiso" in err_foreign
+
+
+# =============================================================================
+# Incremento 2 — Tests Unitarios de Servicios
+# =============================================================================
+
+# --- HU-05: Soft Delete de Tareas ---
+
+def test_delete_task_success(app):
+    """T206: delete_task estampa deleted_at y la tarea deja de aparecer en get_user_tasks."""
+    with app.app_context():
+        user, _ = AuthService.register_user("del_ok@example.com", "pass1234")
+        task, _ = TaskService.create_task(user_id=user.id, title="Para eliminar")
+
+        deleted, error = TaskService.delete_task(user_id=user.id, task_id=task.id)
+        assert error is None
+        assert deleted.deleted_at is not None
+
+        # No debe aparecer en el listado activo
+        tasks = TaskService.get_user_tasks(user_id=user.id)
+        assert all(t.id != task.id for t in tasks)
+
+        # Verificar auditoria TASK_DELETED
+        audit = AuditLog.query.filter_by(
+            action=AuditLog.ACTION_TASK_DELETED, entity_id=deleted.id
+        ).first()
+        assert audit is not None
+        assert audit.actor_id == user.id
+
+
+def test_delete_task_already_deleted(app):
+    """T206: Intentar eliminar una tarea ya eliminada devuelve error claro."""
+    with app.app_context():
+        user, _ = AuthService.register_user("del_twice@example.com", "pass1234")
+        task, _ = TaskService.create_task(user_id=user.id, title="Eliminar dos veces")
+
+        TaskService.delete_task(user_id=user.id, task_id=task.id)
+        result, error = TaskService.delete_task(user_id=user.id, task_id=task.id)
+        assert result is None
+        assert error is not None
+        assert "eliminada" in error.lower()
+
+
+def test_delete_task_wrong_owner(app):
+    """T206: Un usuario no puede eliminar la tarea de otro usuario."""
+    with app.app_context():
+        owner, _ = AuthService.register_user("owner_del@example.com", "pass1234")
+        attacker, _ = AuthService.register_user("attacker_del@example.com", "pass1234")
+        task, _ = TaskService.create_task(user_id=owner.id, title="Tarea del owner")
+
+        result, error = TaskService.delete_task(user_id=attacker.id, task_id=task.id)
+        assert result is None
+        assert error is not None
+
+
+def test_edit_deleted_task_fails(app):
+    """T206: update_task rechaza operar sobre una tarea eliminada."""
+    with app.app_context():
+        user, _ = AuthService.register_user("edit_del@example.com", "pass1234")
+        task, _ = TaskService.create_task(user_id=user.id, title="Editar eliminada")
+        TaskService.delete_task(user_id=user.id, task_id=task.id)
+
+        result, error = TaskService.update_task(
+            user_id=user.id, task_id=task.id, title="Nuevo titulo"
+        )
+        assert result is None
+        assert error is not None
+        assert "eliminada" in error.lower()
+
+
+def test_change_status_deleted_task_fails(app):
+    """T206: update_task_status rechaza operar sobre una tarea eliminada."""
+    with app.app_context():
+        user, _ = AuthService.register_user("status_del@example.com", "pass1234")
+        task, _ = TaskService.create_task(user_id=user.id, title="Estado eliminada")
+        TaskService.delete_task(user_id=user.id, task_id=task.id)
+
+        result, error = TaskService.update_task_status(
+            user_id=user.id, task_id=task.id, new_status=Task.STATUS_IN_PROGRESS
+        )
+        assert result is None
+        assert error is not None
+        assert "eliminada" in error.lower()
+
+
+# --- HU-06: Reapertura de Tareas Completadas ---
+
+def test_reopen_task_success(app):
+    """T213: reopen_task desde completed -> in_progress con auditoria TASK_REOPENED."""
+    with app.app_context():
+        user, _ = AuthService.register_user("reopen_ok@example.com", "pass1234")
+        task, _ = TaskService.create_task(user_id=user.id, title="Completar y reabrir")
+        TaskService.update_task_status(user.id, task.id, Task.STATUS_IN_PROGRESS)
+        TaskService.update_task_status(user.id, task.id, Task.STATUS_COMPLETED)
+
+        reopened, error = TaskService.reopen_task(user_id=user.id, task_id=task.id)
+        assert error is None
+        assert reopened.status == Task.STATUS_IN_PROGRESS
+
+        audit = AuditLog.query.filter_by(
+            action=AuditLog.ACTION_TASK_REOPENED, entity_id=task.id
+        ).first()
+        assert audit is not None
+        assert audit.actor_id == user.id
+
+
+def test_reopen_pending_task_fails(app):
+    """T213: Intentar reabrir tarea pending es invalido."""
+    with app.app_context():
+        user, _ = AuthService.register_user("reopen_pending@example.com", "pass1234")
+        task, _ = TaskService.create_task(user_id=user.id, title="Pending no reabrir")
+
+        result, error = TaskService.reopen_task(user_id=user.id, task_id=task.id)
+        assert result is None
+        assert error is not None
+        assert "completadas" in error.lower()
+
+
+def test_reopen_in_progress_task_fails(app):
+    """T213: Intentar reabrir tarea in_progress es invalido."""
+    with app.app_context():
+        user, _ = AuthService.register_user("reopen_ip@example.com", "pass1234")
+        task, _ = TaskService.create_task(user_id=user.id, title="InProgress no reabrir")
+        TaskService.update_task_status(user.id, task.id, Task.STATUS_IN_PROGRESS)
+
+        result, error = TaskService.reopen_task(user_id=user.id, task_id=task.id)
+        assert result is None
+        assert error is not None
+        assert "completadas" in error.lower()
+
+
+def test_reopen_deleted_task_fails(app):
+    """T213: Intentar reabrir tarea eliminada es invalido."""
+    with app.app_context():
+        user, _ = AuthService.register_user("reopen_del@example.com", "pass1234")
+        task, _ = TaskService.create_task(user_id=user.id, title="Deleted no reabrir")
+        TaskService.update_task_status(user.id, task.id, Task.STATUS_IN_PROGRESS)
+        TaskService.update_task_status(user.id, task.id, Task.STATUS_COMPLETED)
+        TaskService.delete_task(user.id, task.id)
+
+        result, error = TaskService.reopen_task(user_id=user.id, task_id=task.id)
+        assert result is None
+        assert error is not None
+
+
+# --- HU-14: Recuperacion de Contrasena ---
+
+def test_request_password_reset_existing_email(app):
+    """T218: Para email registrado se crea token en BD."""
+    from src.models import PasswordResetToken
+    from src.models.user import User as UserModel
+
+    with app.app_context():
+        AuthService.register_user("reset_existing@example.com", "oldpassword")
+        success, error = AuthService.request_password_reset("reset_existing@example.com")
+
+        assert success is True
+        assert error is None
+
+        user = UserModel.query.filter_by(email="reset_existing@example.com").first()
+        tokens = PasswordResetToken.query.filter_by(user_id=user.id).all()
+        assert len(tokens) >= 1
+        assert tokens[-1].is_valid()
+
+
+def test_request_password_reset_unknown_email(app):
+    """T218: Para email desconocido la respuesta es identica (no revela inexistencia)."""
+    with app.app_context():
+        success, error = AuthService.request_password_reset("nobody@nowhere.com")
+        assert success is True
+        assert error is None
+
+
+def test_reset_password_valid_token(app):
+    """T218: Token valido actualiza hash y estampa used_at."""
+    from src.models import PasswordResetToken
+    from src.models.user import User as UserModel
+
+    with app.app_context():
+        AuthService.register_user("reset_valid@example.com", "oldpassword12")
+        AuthService.request_password_reset("reset_valid@example.com")
+
+        user = UserModel.query.filter_by(email="reset_valid@example.com").first()
+        token_row = PasswordResetToken.query.filter_by(user_id=user.id).first()
+        token_str = token_row.token
+
+        success, error = AuthService.reset_password(token_str, "newpassword99")
+        assert success is True
+        assert error is None
+
+        user_fresh = db.session.get(UserModel, user.id)
+        assert user_fresh.check_password("newpassword99") is True
+        assert not user_fresh.check_password("oldpassword12")
+
+        token_fresh = db.session.get(PasswordResetToken, token_row.id)
+        assert token_fresh.used_at is not None
+
+
+def test_reset_password_expired_token(app):
+    """T218: Token expirado es rechazado."""
+    from src.models import PasswordResetToken
+    from src.models.user import User as UserModel
+    from datetime import datetime, timezone, timedelta
+
+    with app.app_context():
+        AuthService.register_user("reset_exp@example.com", "pass12345")
+        user = UserModel.query.filter_by(email="reset_exp@example.com").first()
+
+        expired_token = PasswordResetToken(
+            user_id=user.id,
+            token="expiredtoken" + "x" * 52,
+            expires_at=datetime.now(timezone.utc) - timedelta(hours=2),
+        )
+        db.session.add(expired_token)
+        db.session.commit()
+
+        success, error = AuthService.reset_password(expired_token.token, "newpass123")
+        assert success is False
+        assert error is not None
+
+
+def test_reset_password_used_token(app):
+    """T218: Token ya consumido es rechazado."""
+    from src.models import PasswordResetToken
+    from src.models.user import User as UserModel
+
+    with app.app_context():
+        AuthService.register_user("reset_used@example.com", "pass12345")
+        user = UserModel.query.filter_by(email="reset_used@example.com").first()
+
+        AuthService.request_password_reset("reset_used@example.com")
+        token_row = PasswordResetToken.query.filter_by(user_id=user.id).first()
+        token_str = token_row.token
+
+        AuthService.reset_password(token_str, "firstnewpass99")
+        success, error = AuthService.reset_password(token_str, "secondnewpass99")
+        assert success is False
+        assert error is not None
+
+
+def test_reset_password_short_password(app):
+    """T218: Contrasena < 8 caracteres es rechazada."""
+    from src.models import PasswordResetToken
+    from src.models.user import User as UserModel
+
+    with app.app_context():
+        AuthService.register_user("reset_short@example.com", "pass12345")
+        AuthService.request_password_reset("reset_short@example.com")
+
+        user = UserModel.query.filter_by(email="reset_short@example.com").first()
+        token_row = PasswordResetToken.query.filter_by(user_id=user.id).first()
+
+        success, error = AuthService.reset_password(token_row.token, "1234567")
+        assert success is False
+        assert error is not None

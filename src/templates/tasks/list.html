@@ -57,10 +57,24 @@
                                 <input type="hidden" name="new_status" value="completed">
                                 <button type="submit" class="btn btn-sm btn-success">✓ Completar</button>
                             </form>
+                        {% elif task.status == 'completed' %}
+                            <!-- Reapertura de tarea completada (HU-06) -->
+                            <form method="POST" action="{{ url_for('tasks.reopen_task', task_id=task.id) }}" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-warning">↩ Reabrir</button>
+                            </form>
                         {% endif %}
 
                         <!-- Edición de tareas (HU-04) -->
-                        <a href="{{ url_for('tasks.edit_task', task_id=task.id) }}" class="btn btn-sm btn-secondary">✏ Editar</a>
+                        {% if task.status != 'completed' %}
+                            <a href="{{ url_for('tasks.edit_task', task_id=task.id) }}" class="btn btn-sm btn-secondary">✏ Editar</a>
+                        {% endif %}
+
+                        <!-- Eliminación lógica (HU-05) -->
+                        <form method="POST" action="{{ url_for('tasks.delete_task', task_id=task.id) }}"
+                              style="display:inline;"
+                              onsubmit="return confirm('¿Estás seguro de que deseas eliminar esta tarea? Esta acción no se puede deshacer.');">
+                            <button type="submit" class="btn btn-sm btn-danger">🗑 Eliminar</button>
+                        </form>
                     </div>
                 </div>
             {% endfor %}
