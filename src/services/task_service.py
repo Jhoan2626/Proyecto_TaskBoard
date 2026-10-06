@@ -5,6 +5,8 @@ from src.services.audit_service import AuditService
 
 
 class TaskService:
+    TITLE_TOO_LONG_ERROR = f"El título no puede superar los {Task.TITLE_MAX_LENGTH} caracteres."
+
     # Transiciones válidas en Incremento 1 (HU-03).
     # La reapertura desde 'completed' se maneja con reopen_task (HU-06), no aquí.
     VALID_TRANSITIONS = {
@@ -24,11 +26,13 @@ class TaskService:
         Crea una nueva tarea para el usuario autenticado (HU-01).
         Registra un log de auditoría (Principio VIII).
         """
-        if not title or not title.strip():
+        if not isinstance(title, str) or not title.strip():
             return None, "El título de la tarea es obligatorio y no puede estar vacío."
 
         cleaned_title = title.strip()
-        cleaned_desc = description.strip() if description else None
+        if len(cleaned_title) > Task.TITLE_MAX_LENGTH:
+            return None, TaskService.TITLE_TOO_LONG_ERROR
+        cleaned_desc = (description.strip() or None) if isinstance(description, str) else None
 
         task = Task(
             user_id=user_id,
@@ -198,11 +202,14 @@ class TaskService:
         if error:
             return None, error
 
-        if not title or not title.strip():
+        if not isinstance(title, str) or not title.strip():
             return None, "El título de la tarea es obligatorio y no puede estar vacío."
 
+        if len(title.strip()) > Task.TITLE_MAX_LENGTH:
+            return None, TaskService.TITLE_TOO_LONG_ERROR
+
         task.title = title.strip()
-        task.description = description.strip() if description else None
+        task.description = (description.strip() or None) if isinstance(description, str) else None
         task.due_date = due_date
 
         db.session.commit()
