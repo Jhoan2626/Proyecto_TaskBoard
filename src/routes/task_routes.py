@@ -7,13 +7,31 @@ from src.routes.decorators import login_required
 task_bp = Blueprint("tasks", __name__)
 
 
+def _error_status(error: str) -> int:
+    if "No tiene permiso" in error:
+        return 403
+    if "no encontrad" in error:
+        return 404
+    return 400
+
+
+INVALID_DATE_ERROR = "La fecha límite debe tener el formato AAAA-MM-DD."
+
+
 def parse_date(date_str):
-    if not date_str or not date_str.strip():
+    if not isinstance(date_str, str) or not date_str.strip():
         return None
     try:
         return datetime.strptime(date_str.strip(), "%Y-%m-%d").date()
     except ValueError:
         return None
+
+
+def has_invalid_date(date_raw, parsed):
+    """True si se envió una fecha no vacía que no pudo interpretarse."""
+    if parsed is not None or date_raw is None:
+        return False
+    return not (isinstance(date_raw, str) and not date_raw.strip())
 
 
 @task_bp.route("", methods=["GET"])
@@ -77,12 +95,15 @@ def create_task():
 
     due_date = parse_date(due_date_raw)
 
-    task, error = TaskService.create_task(
-        user_id=g.current_user.id,
-        title=title,
-        description=description,
-        due_date=due_date,
-    )
+    if has_invalid_date(due_date_raw, due_date):
+        task, error = None, INVALID_DATE_ERROR
+    else:
+        task, error = TaskService.create_task(
+            user_id=g.current_user.id,
+            title=title,
+            description=description,
+            due_date=due_date,
+        )
 
     if error:
         if request.is_json:
@@ -127,21 +148,26 @@ def update_task(task_id):
 
     due_date = parse_date(due_date_raw)
 
-    task, error = TaskService.update_task(
-        user_id=g.current_user.id,
-        task_id=task_id,
-        title=title,
-        description=description,
-        due_date=due_date,
-    )
+    if has_invalid_date(due_date_raw, due_date):
+        task, error = None, INVALID_DATE_ERROR
+    else:
+        task, error = TaskService.update_task(
+            user_id=g.current_user.id,
+            task_id=task_id,
+            title=title,
+            description=description,
+            due_date=due_date,
+        )
 
     if error:
         if request.is_json:
-            status_code = 403 if "No tiene permiso" in error else 400
+            status_code = _error_status(error)
             return jsonify({"error": error}), status_code
         flash(error, "danger")
         # Obtenemos la tarea original para no romper el formulario
         original_task, _ = TaskService.get_task_by_id(user_id=g.current_user.id, task_id=task_id)
+        if original_task is None:
+            return redirect(url_for("tasks.list_tasks"))
         return render_template("tasks/edit.html", task=original_task, title=title, description=description), 400
 
     if request.is_json:
@@ -169,7 +195,7 @@ def change_status(task_id):
 
     if error:
         if request.is_json or request.headers.get("Accept") == "application/json":
-            status_code = 403 if "No tiene permiso" in error else 400
+            status_code = _error_status(error)
             return jsonify({"error": error}), status_code
         flash(error, "danger")
         return redirect(url_for("tasks.list_tasks"))
@@ -197,7 +223,7 @@ def reorder_tasks():
         task_ids=task_ids,
     )
     if error:
-        status_code = 403 if "No tiene permiso" in error else 400
+        status_code = _error_status(error)
         return jsonify({"error": error}), status_code
 
     return jsonify({
@@ -264,7 +290,7 @@ def change_priority(task_id):
 
     if error:
         if request.is_json:
-            return jsonify({'error': error}), 400
+            return jsonify({'error': error}), _error_status(error)
         flash(error, 'danger')
         return redirect(url_for('tasks.list_tasks'))
 
@@ -295,7 +321,11 @@ def assign_category(task_id):
         try:
             category_id = int(raw)
         except (ValueError, TypeError):
-            category_id = None
+            error = 'Categoría no válida o no pertenece al usuario.'
+            if request.is_json:
+                return jsonify({'error': error}), 400
+            flash(error, 'danger')
+            return redirect(url_for('tasks.list_tasks'))
 
     task, error = TaskService.assign_category(
         user_id=g.current_user.id,
@@ -305,7 +335,7 @@ def assign_category(task_id):
 
     if error:
         if request.is_json:
-            return jsonify({'error': error}), 400
+            return jsonify({'error': error}), _error_status(error)
         flash(error, 'danger')
         return redirect(url_for('tasks.list_tasks'))
 

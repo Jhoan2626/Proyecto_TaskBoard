@@ -65,7 +65,8 @@ def login():
             return jsonify({"message": "Inicio de sesión exitoso", "user_id": user.id}), 200
 
         next_page = request.args.get("next")
-        if not next_page or not next_page.startswith("/"):
+        # Solo rutas locales: "//host" y "/\host" son interpretadas como externas por los navegadores.
+        if not next_page or not next_page.startswith("/") or next_page.startswith(("//", "/\\")):
             next_page = url_for("tasks.list_tasks")
 
         return redirect(next_page)
