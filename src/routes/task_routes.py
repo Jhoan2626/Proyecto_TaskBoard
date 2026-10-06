@@ -20,11 +20,15 @@ def parse_date(date_str):
 @login_required
 def list_tasks():
     status_filter = request.args.get("status")
-    tasks = TaskService.get_user_tasks(user_id=g.current_user.id, status_filter=status_filter)
+    scope = request.args.get("scope")  # Incremento 4: all (default) | mine | assigned
+    tasks = TaskService.get_user_tasks(
+        user_id=g.current_user.id, status_filter=status_filter, scope=scope
+    )
     return render_template(
         "tasks/list.html",
         tasks=tasks,
         current_filter=status_filter or "all",
+        current_scope=scope if scope in ("mine", "assigned") else "all",
         allowed_statuses=Task.ALLOWED_STATUSES,
     )
 

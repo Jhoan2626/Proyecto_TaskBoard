@@ -40,8 +40,10 @@ def create_app(config_name=None):
     # Registro de Blueprints
     from src.routes.auth_routes import auth_bp
     from src.routes.task_routes import task_bp
+    from src.routes.collab_routes import collab_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(task_bp, url_prefix="/tasks")
+    app.register_blueprint(collab_bp)
 
     return app

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Notificaciones{% endblock %}
+
+{% block content %}
+<div class="tasks-page">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h1>Notificaciones</h1>
+        {% if notifications %}
+        <form method="POST" action="{{ url_for('collab.mark_all_notifications_read') }}">
+            <button type="submit" class="btn btn-sm btn-secondary">Marcar todas como leídas</button>
+        </form>
+        {% endif %}
+    </div>
+
+    <div class="filters-bar">
+        <a href="{{ url_for('collab.list_notifications') }}" class="filter-btn {{ '' if unread_only else 'active' }}">Todas</a>
+        <a href="{{ url_for('collab.list_notifications', unread=1) }}" class="filter-btn {{ 'active' if unread_only else '' }}">No leídas</a>
+    </div>
+
+    {% if notifications %}
+        <div class="task-grid">
+            {% for n in notifications %}
+                <div class="task-card" {% if not n.is_read %}style="border-left: 4px solid #2563eb;"{% endif %}>
+                    <div>
+                        <div class="task-header">
+                            <span class="task-title">{{ n.message }}</span>
+                            {% if not n.is_read %}<span class="badge badge-in_progress">Nueva</span>{% endif %}
+                        </div>
+                        <div class="task-meta">
+                            <div>🕒 {{ n.created_at.strftime('%Y-%m-%d %H:%M') }} UTC</div>
+                        </div>
+                    </div>
+                    <div class="task-actions">
+                        <a href="{{ url_for('tasks.list_tasks', scope='assigned') }}" class="btn btn-sm btn-secondary">Ver tareas asignadas</a>
+                        {% if not n.is_read %}
+                        <form method="POST" action="{{ url_for('collab.mark_notification_read', notification_id=n.id) }}" style="display:inline;">
+                            <button type="submit" class="btn btn-sm btn-success">Marcar como leída</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="card text-center" style="padding: 3rem 1.5rem;">
+            <p class="text-muted">No tienes notificaciones.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -18,6 +18,14 @@
         <a href="{{ url_for('tasks.list_tasks', status='completed') }}" class="filter-btn {{ 'active' if current_filter == 'completed' else '' }}">Completadas</a>
     </div>
 
+    <!-- Ámbito de tareas (HU-10): propias vs asignadas a mí -->
+    <div class="filters-bar">
+        <span>Mostrar:</span>
+        <a href="{{ url_for('tasks.list_tasks', status=(current_filter if current_filter != 'all' else none)) }}" class="filter-btn {{ 'active' if current_scope == 'all' else '' }}">Todas</a>
+        <a href="{{ url_for('tasks.list_tasks', scope='mine', status=(current_filter if current_filter != 'all' else none)) }}" class="filter-btn {{ 'active' if current_scope == 'mine' else '' }}">Creadas por mí</a>
+        <a href="{{ url_for('tasks.list_tasks', scope='assigned', status=(current_filter if current_filter != 'all' else none)) }}" class="filter-btn {{ 'active' if current_scope == 'assigned' else '' }}">Asignadas a mí</a>
+    </div>
+
     {% if tasks %}
         <div class="task-grid">
             {% for task in tasks %}
@@ -42,9 +50,15 @@
                                 <div>📅 <strong>Fecha límite:</strong> {{ task.due_date.strftime('%Y-%m-%d') }}</div>
                             {% endif %}
                             <div>🕒 <strong>Creada:</strong> {{ task.created_at.strftime('%Y-%m-%d %H:%M') }} UTC</div>
+                            {% if task.user_id != current_user.id %}
+                                <div><strong>Asignada por:</strong> {{ task.user.email }}</div>
+                            {% elif task.assignee %}
+                                <div><strong>Asignada a:</strong> {{ task.assignee.email }}</div>
+                            {% endif %}
                         </div>
                     </div>
 
+{% if task.user_id == current_user.id %}
                     <div class="task-actions">
                         <!-- Transiciones de estado permitidas (HU-03) -->
                         {% if task.status == 'pending' %}
@@ -75,7 +89,13 @@
                               onsubmit="return confirm('¿Estás seguro de que deseas eliminar esta tarea? Esta acción no se puede deshacer.');">
                             <button type="submit" class="btn btn-sm btn-danger">🗑 Eliminar</button>
                         </form>
+                        <!-- Asignación (HU-10) -->
+                        <form method="POST" action="{{ url_for('collab.assign_task', task_id=task.id) }}" style="display:inline-flex; gap:.25rem;">
+                            <input type="email" name="assignee_email" class="form-control" placeholder="correo (vacío = quitar)" value="{{ task.assignee.email if task.assignee else '' }}" style="width:200px;">
+                            <button type="submit" class="btn btn-sm btn-secondary">Asignar</button>
+                        </form>
                     </div>
+{% endif %}
                 </div>
             {% endfor %}
         </div>

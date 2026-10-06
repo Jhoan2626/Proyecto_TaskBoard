@@ -1,4 +1,5 @@
 from datetime import date, datetime, timezone
+from sqlalchemy import or_
 from src.models import db, Task, AuditLog
 from src.services.audit_service import AuditService
 
@@ -52,13 +53,26 @@ class TaskService:
         return task, None
 
     @staticmethod
-    def get_user_tasks(user_id: int, status_filter: str | None = None) -> list[Task]:
+    def get_user_tasks(
+        user_id: int,
+        status_filter: str | None = None,
+        scope: str | None = None,
+    ) -> list[Task]:
         """
-        Lista las tareas activas pertenecientes exclusivamente al usuario autenticado (HU-02).
+        Lista las tareas activas del usuario autenticado (HU-02).
+        Incremento 4 (HU-10): incluye las creadas por él y las asignadas a él.
+        `scope`: 'mine' (solo propias), 'assigned' (solo asignadas a mí); otro = ambas.
         Excluye tareas eliminadas lógicamente (deleted_at IS NOT NULL) — HU-05.
         Permite filtrado por estado.
         """
-        query = Task.query.filter_by(user_id=user_id).filter(Task.deleted_at == None)  # noqa: E711
+        if scope == "mine":
+            ownership = Task.user_id == user_id
+        elif scope == "assigned":
+            ownership = Task.assignee_id == user_id
+        else:
+            ownership = or_(Task.user_id == user_id, Task.assignee_id == user_id)
+
+        query = Task.query.filter(ownership).filter(Task.deleted_at == None)  # noqa: E711
 
         if status_filter and status_filter in Task.ALLOWED_STATUSES:
             query = query.filter_by(status=status_filter)
