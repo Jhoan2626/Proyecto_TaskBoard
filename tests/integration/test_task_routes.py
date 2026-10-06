@@ -120,7 +120,7 @@ def test_change_priority_route(authenticated_client):
     """POST /tasks/<id>/priority cambia la prioridad de la tarea."""
     # Crear tarea
     authenticated_client.post('/tasks', data={'title': 'Tarea para prioridad'})
-    from src.models import Task
+    from src.models import Task, db
     with authenticated_client.application.app_context():
         task = Task.query.filter_by(title='Tarea para prioridad').first()
         task_id = task.id
@@ -130,7 +130,7 @@ def test_change_priority_route(authenticated_client):
     assert response.status_code == 200
 
     with authenticated_client.application.app_context():
-        task = Task.query.get(task_id)
+        task = db.session.get(Task, task_id)
         assert task.priority == 'alta'
 
 

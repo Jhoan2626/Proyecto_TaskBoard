@@ -44,8 +44,8 @@ def test_delete_category_route(authenticated_client):
 
     with authenticated_client.application.app_context():
         from src.models import Task, Category
-        assert Category.query.get(cat_id) is None
-        task = Task.query.get(task_id)
+        assert db.session.get(Category, cat_id) is None
+        task = db.session.get(Task, task_id)
         assert task is not None
         assert task.category_id is None
 
