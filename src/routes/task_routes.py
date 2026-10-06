@@ -34,6 +34,12 @@ def list_tasks():
         category_id=category_id,
     )
     categories = CategoryService.get_user_categories(g.current_user.id)
+    can_reorder = (
+        (scope == "mine")
+        and (not status_filter or status_filter == "all")
+        and category_id is None
+        and sort_by != "priority"
+    )
 
     return render_template(
         "tasks/list.html",
@@ -44,6 +50,7 @@ def list_tasks():
         categories=categories,
         current_category_id=category_id,
         current_sort=sort_by or "",
+        can_reorder=can_reorder,
     )
 @task_bp.route("/new", methods=["GET"])
 @login_required
@@ -172,6 +179,31 @@ def change_status(task_id):
 
     flash(f"Estado de la tarea actualizado a '{task.status}'.", "success")
     return redirect(url_for("tasks.list_tasks"))
+
+
+@task_bp.route("/reorder", methods=["POST"])
+@login_required
+def reorder_tasks():
+    if not request.is_json:
+        return jsonify({"error": "La solicitud debe usar JSON."}), 400
+
+    data = request.get_json(silent=True)
+    task_ids = data.get("task_ids") if isinstance(data, dict) else None
+    if not isinstance(task_ids, list):
+        return jsonify({"error": "Se requiere una lista task_ids."}), 400
+
+    tasks, error = TaskService.reorder_user_tasks(
+        user_id=g.current_user.id,
+        task_ids=task_ids,
+    )
+    if error:
+        status_code = 403 if "No tiene permiso" in error else 400
+        return jsonify({"error": error}), status_code
+
+    return jsonify({
+        "message": "Orden de tareas actualizado.",
+        "task_ids": [task.id for task in tasks],
+    }), 200
 
 
 # =============================================================================

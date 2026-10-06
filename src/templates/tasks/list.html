@@ -44,19 +44,36 @@
         <a href="{{ url_for('tasks.list_tasks', scope='assigned', status=(current_filter if current_filter != 'all' else none), sort_by=current_sort, category_id=current_category_id) }}" class="filter-btn {{ 'active' if current_scope == 'assigned' else '' }}">Asignadas a mí</a>
     </div>
 
+    <div id="task-interaction-message" class="alert" role="status" aria-live="polite" hidden></div>
+
+    {% if can_reorder %}
+        <p class="text-muted" id="task-reorder-help">
+            Arrastra el control ↕ de una tarjeta para cambiar el orden de tus tareas.
+        </p>
+    {% endif %}
+
     {% if tasks %}
-        <div class="task-grid">
+        <div class="task-grid"
+             {% if can_reorder %}data-reorder-enabled="true" data-reorder-url="{{ url_for('tasks.reorder_tasks') }}" aria-describedby="task-reorder-help"{% endif %}>
             {% for task in tasks %}
-                <div class="task-card">
+                <div class="task-card"
+                     data-task-id="{{ task.id }}"
+                     data-status="{{ task.status }}"
+                     data-reopen-url="{{ url_for('tasks.reopen_task', task_id=task.id) }}">
                     <div>
                         <div class="task-header">
+                            {% if can_reorder %}
+                                <button type="button" class="task-drag-handle" draggable="true"
+                                        aria-label="Arrastrar para reordenar: {{ task.title }}"
+                                        title="Arrastrar para reordenar">↕</button>
+                            {% endif %}
                             <span class="task-title">
                                 {{ task.title }}
                                 {% if task.is_overdue %}
                                     <span class="badge badge-danger" style="margin-left: 0.5rem; font-size: 0.8em;">⚠️ Vencida</span>
                                 {% endif %}
                             </span>
-                            <span class="badge badge-{{ task.status }}">
+                            <span class="badge badge-{{ task.status }} task-status">
                                 {% if task.status == 'pending' %}Pendiente
                                 {% elif task.status == 'in_progress' %}En Progreso
                                 {% elif task.status == 'completed' %}Completada
@@ -120,12 +137,12 @@
                     <div class="task-actions">
                         <!-- Transiciones de estado permitidas (HU-03) -->
                         {% if task.status == 'pending' %}
-                            <form method="POST" action="{{ url_for('tasks.change_status', task_id=task.id) }}" style="display:inline;">
+                            <form method="POST" action="{{ url_for('tasks.change_status', task_id=task.id) }}" style="display:inline;" class="js-status-form">
                                 <input type="hidden" name="new_status" value="in_progress">
                                 <button type="submit" class="btn btn-sm btn-warning">▶ Iniciar</button>
                             </form>
                         {% elif task.status == 'in_progress' %}
-                            <form method="POST" action="{{ url_for('tasks.change_status', task_id=task.id) }}" style="display:inline;">
+                            <form method="POST" action="{{ url_for('tasks.change_status', task_id=task.id) }}" style="display:inline;" class="js-status-form">
                                 <input type="hidden" name="new_status" value="completed">
                                 <button type="submit" class="btn btn-sm btn-success">✓ Completar</button>
                             </form>

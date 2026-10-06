@@ -50,6 +50,106 @@ def test_change_status_route(authenticated_client):
     assert response.status_code == 302
 
 
+def test_change_status_json_route_returns_confirmed_status(authenticated_client):
+    authenticated_client.post("/tasks", data={"title": "Completar sin recargar"})
+    started = authenticated_client.post(
+        "/tasks/1/status",
+        json={"new_status": "in_progress"},
+        headers={"Accept": "application/json"},
+    )
+    completed = authenticated_client.post(
+        "/tasks/1/status",
+        json={"new_status": "completed"},
+        headers={"Accept": "application/json"},
+    )
+
+    assert started.status_code == 200
+    assert completed.status_code == 200
+    assert completed.json["status"] == "completed"
+
+
+def test_reorder_tasks_route_persists_order(authenticated_client):
+    from src.models import Task, db
+
+    for title in ("Orden 1", "Orden 2", "Orden 3"):
+        authenticated_client.post("/tasks", data={"title": title})
+
+    with authenticated_client.application.app_context():
+        task_ids = [
+            task.id
+            for task in Task.query.order_by(Task.id.asc()).all()
+        ]
+
+    response = authenticated_client.post(
+        "/tasks/reorder",
+        json={"task_ids": [task_ids[1], task_ids[2], task_ids[0]]},
+        headers={"Accept": "application/json"},
+    )
+
+    assert response.status_code == 200
+    assert response.json["task_ids"] == [task_ids[1], task_ids[2], task_ids[0]]
+    with authenticated_client.application.app_context():
+        positions = {
+            task.id: task.position
+            for task in db.session.query(Task).filter(Task.id.in_(task_ids)).all()
+        }
+        assert positions == {
+            task_ids[1]: 0,
+            task_ids[2]: 1,
+            task_ids[0]: 2,
+        }
+
+
+def test_reorder_tasks_route_rejects_foreign_task(authenticated_client, app):
+    from src.models import Task, User, db
+
+    authenticated_client.post("/tasks", data={"title": "Tarea propia"})
+    with app.app_context():
+        other = User(email="reorder-foreign@example.com")
+        other.set_password("securepassword123")
+        db.session.add(other)
+        db.session.flush()
+        foreign_task = Task(user_id=other.id, title="Tarea ajena")
+        db.session.add(foreign_task)
+        db.session.commit()
+        foreign_task_id = foreign_task.id
+
+    response = authenticated_client.post(
+        "/tasks/reorder",
+        json={"task_ids": [1, foreign_task_id]},
+        headers={"Accept": "application/json"},
+    )
+
+    assert response.status_code == 403
+    assert "No tiene permiso" in response.json["error"]
+
+
+def test_reorder_tasks_route_requires_json_and_complete_order(authenticated_client):
+    authenticated_client.post("/tasks", data={"title": "Tarea sin ordenar"})
+
+    response = authenticated_client.post(
+        "/tasks/reorder",
+        json={"task_ids": []},
+        headers={"Accept": "application/json"},
+    )
+
+    assert response.status_code == 400
+    assert "no coincide" in response.json["error"]
+
+
+def test_manual_reorder_controls_only_appear_for_unfiltered_own_tasks(authenticated_client):
+    authenticated_client.post("/tasks", data={"title": "Orden manual"})
+
+    default_view = authenticated_client.get("/tasks")
+    reorder_view = authenticated_client.get("/tasks?scope=mine")
+    filtered_view = authenticated_client.get("/tasks?scope=mine&status=pending")
+
+    assert b"task-drag-handle" not in default_view.data
+    assert b'data-reorder-enabled="true"' in reorder_view.data
+    assert b"task-drag-handle" in reorder_view.data
+    assert b"task-drag-handle" not in filtered_view.data
+
+
 def test_edit_task_route(authenticated_client):
     authenticated_client.post(
         "/tasks",

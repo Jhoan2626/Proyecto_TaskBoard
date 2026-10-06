@@ -37,6 +37,10 @@ class TaskService:
             due_date=due_date,
             status=Task.STATUS_PENDING,
         )
+        first_position = db.session.query(db.func.min(Task.position)).filter_by(
+            user_id=user_id
+        ).scalar()
+        task.position = 0 if first_position is None else first_position - 1
 
         db.session.add(task)
         db.session.commit()
@@ -81,12 +85,51 @@ class TaskService:
         if category_id is not None:
             query = query.filter_by(category_id=category_id)
 
-        tasks = query.order_by(Task.created_at.desc()).all()
+        tasks = query.order_by(
+            Task.position.asc(), Task.created_at.desc(), Task.id.desc()
+        ).all()
 
         if sort_by == "priority":
             tasks = sorted(tasks, key=lambda t: Task.PRIORITY_SORT_KEY.get(t.priority, 99))
 
         return tasks
+
+    @staticmethod
+    def reorder_user_tasks(
+        user_id: int,
+        task_ids: list[int],
+    ) -> tuple[list[Task] | None, str | None]:
+        """Persiste una permutación completa de las tareas activas propias."""
+        if not isinstance(task_ids, list) or any(type(task_id) is not int for task_id in task_ids):
+            return None, "El orden debe ser una lista de identificadores enteros."
+
+        if len(task_ids) != len(set(task_ids)):
+            return None, "La lista de tareas contiene identificadores duplicados."
+
+        owned_tasks = Task.query.filter_by(user_id=user_id).filter(
+            Task.deleted_at.is_(None)
+        ).all()
+        owned_ids = {task.id for task in owned_tasks}
+        submitted_ids = set(task_ids)
+
+        if submitted_ids != owned_ids:
+            all_owned_ids = {
+                task.id for task in Task.query.filter_by(user_id=user_id).all()
+            }
+            if submitted_ids - all_owned_ids:
+                return None, "No tiene permiso para reordenar una o más tareas."
+            return None, "El orden enviado no coincide con las tareas activas del usuario."
+
+        tasks_by_id = {task.id: task for task in owned_tasks}
+        ordered_tasks = []
+        for position, task_id in enumerate(task_ids):
+            task = tasks_by_id[task_id]
+            task.position = position
+            ordered_tasks.append(task)
+
+        db.session.commit()
+        return ordered_tasks, None
+
     @staticmethod
     def get_task_by_id(user_id: int, task_id: int) -> tuple[Task | None, str | None]:
         """

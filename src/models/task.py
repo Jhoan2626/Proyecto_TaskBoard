@@ -32,6 +32,8 @@ class Task(db.Model):
     category_id = db.Column(db.Integer, db.ForeignKey('categories.id', ondelete='SET NULL'), nullable=True)
     # Incremento 4 (HU-10): usuario asignado. user_id sigue siendo el propietario/creador.
     assignee_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    # Incremento 5 (HU-16): orden manual dentro del tablero de cada propietario.
+    position = db.Column(db.Integer, nullable=False, default=0, server_default="0")
 
     VALID_PRIORITIES = ['alta', 'media', 'baja']
     PRIORITY_SORT_KEY = {'alta': 1, 'media': 2, 'baja': 3}

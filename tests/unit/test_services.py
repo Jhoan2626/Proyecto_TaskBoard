@@ -114,6 +114,18 @@ def test_get_user_tasks_isolation(app):
         assert tasks_b[0].title == "Tarea de B"
 
 
+def test_new_tasks_keep_newest_first_until_manual_reorder(app):
+    with app.app_context():
+        user, _ = AuthService.register_user("order-default@example.com", "pass123")
+        older, _ = TaskService.create_task(user.id, "Más antigua")
+        newer, _ = TaskService.create_task(user.id, "Más nueva")
+
+        tasks = TaskService.get_user_tasks(user.id, scope="mine")
+
+        assert newer.position < older.position
+        assert [task.id for task in tasks] == [newer.id, older.id]
+
+
 def test_get_user_tasks_filtering(app):
     with app.app_context():
         user, _ = AuthService.register_user("filteruser@example.com", "pass123")
@@ -128,6 +140,59 @@ def test_get_user_tasks_filtering(app):
         in_progress = TaskService.get_user_tasks(user_id=user.id, status_filter=Task.STATUS_IN_PROGRESS)
         assert len(in_progress) == 1
         assert in_progress[0].id == t2.id
+
+
+def test_reorder_user_tasks_persists_complete_order(app):
+    with app.app_context():
+        user, _ = AuthService.register_user("reorder@example.com", "pass123")
+        first, _ = TaskService.create_task(user_id=user.id, title="Primera")
+        second, _ = TaskService.create_task(user_id=user.id, title="Segunda")
+        third, _ = TaskService.create_task(user_id=user.id, title="Tercera")
+
+        reordered, error = TaskService.reorder_user_tasks(
+            user.id, [second.id, third.id, first.id]
+        )
+
+        assert error is None
+        assert [task.id for task in reordered] == [second.id, third.id, first.id]
+        assert [task.position for task in reordered] == [0, 1, 2]
+        assert [
+            task.id for task in TaskService.get_user_tasks(user.id, scope="mine")
+        ] == [second.id, third.id, first.id]
+
+
+def test_reorder_user_tasks_rejects_foreign_task(app):
+    with app.app_context():
+        owner, _ = AuthService.register_user("reorder-owner@example.com", "pass123")
+        other, _ = AuthService.register_user("reorder-other@example.com", "pass123")
+        owned_task, _ = TaskService.create_task(owner.id, "Propia")
+        foreign_task, _ = TaskService.create_task(other.id, "Ajena")
+
+        reordered, error = TaskService.reorder_user_tasks(
+            owner.id, [owned_task.id, foreign_task.id]
+        )
+
+        assert reordered is None
+        assert "No tiene permiso" in error
+
+
+def test_reorder_user_tasks_rejects_incomplete_or_duplicate_order(app):
+    with app.app_context():
+        user, _ = AuthService.register_user("reorder-invalid@example.com", "pass123")
+        first, _ = TaskService.create_task(user.id, "Primera")
+        second, _ = TaskService.create_task(user.id, "Segunda")
+
+        incomplete, incomplete_error = TaskService.reorder_user_tasks(
+            user.id, [first.id]
+        )
+        duplicated, duplicated_error = TaskService.reorder_user_tasks(
+            user.id, [first.id, first.id]
+        )
+
+        assert incomplete is None
+        assert "no coincide" in incomplete_error
+        assert duplicated is None
+        assert "duplicados" in duplicated_error
 
 
 def test_update_task_status_allowed_and_forbidden_transitions(app):
