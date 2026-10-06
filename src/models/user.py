@@ -15,7 +15,13 @@ class User(db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     created_at = db.Column(db.DateTime, default=get_utc_now, nullable=False)
 
-    tasks = db.relationship("Task", back_populates="user", cascade="all, delete-orphan", lazy="dynamic")
+    tasks = db.relationship(
+        "Task",
+        back_populates="user",
+        foreign_keys="Task.user_id",
+        cascade="all, delete-orphan",
+        lazy="dynamic",
+    )
     categories = db.relationship('Category', back_populates='user', lazy=True)
 
     def set_password(self, password: str) -> None:

@@ -13,15 +13,16 @@
     <div class="filters-bar" style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
         <div>
             <span>Filtrar por estado:</span>
-            <a href="{{ url_for('tasks.list_tasks', status='all', sort_by=current_sort, category_id=current_category_id) }}" class="filter-btn {{ 'active' if current_filter == 'all' else '' }}">Todas</a>
-            <a href="{{ url_for('tasks.list_tasks', status='pending', sort_by=current_sort, category_id=current_category_id) }}" class="filter-btn {{ 'active' if current_filter == 'pending' else '' }}">Pendientes</a>
-            <a href="{{ url_for('tasks.list_tasks', status='in_progress', sort_by=current_sort, category_id=current_category_id) }}" class="filter-btn {{ 'active' if current_filter == 'in_progress' else '' }}">En Progreso</a>
-            <a href="{{ url_for('tasks.list_tasks', status='completed', sort_by=current_sort, category_id=current_category_id) }}" class="filter-btn {{ 'active' if current_filter == 'completed' else '' }}">Completadas</a>
+            <a href="{{ url_for('tasks.list_tasks', status='all', scope=current_scope, sort_by=current_sort, category_id=current_category_id) }}" class="filter-btn {{ 'active' if current_filter == 'all' else '' }}">Todas</a>
+            <a href="{{ url_for('tasks.list_tasks', status='pending', scope=current_scope, sort_by=current_sort, category_id=current_category_id) }}" class="filter-btn {{ 'active' if current_filter == 'pending' else '' }}">Pendientes</a>
+            <a href="{{ url_for('tasks.list_tasks', status='in_progress', scope=current_scope, sort_by=current_sort, category_id=current_category_id) }}" class="filter-btn {{ 'active' if current_filter == 'in_progress' else '' }}">En Progreso</a>
+            <a href="{{ url_for('tasks.list_tasks', status='completed', scope=current_scope, sort_by=current_sort, category_id=current_category_id) }}" class="filter-btn {{ 'active' if current_filter == 'completed' else '' }}">Completadas</a>
         </div>
-        
+
         <form method="GET" action="{{ url_for('tasks.list_tasks') }}" style="display: flex; gap: 0.5rem;">
             <input type="hidden" name="status" value="{{ current_filter }}">
             <input type="hidden" name="sort_by" value="{{ current_sort }}">
+            <input type="hidden" name="scope" value="{{ current_scope }}">
             <select name="category_id" onchange="this.form.submit()" class="form-control" style="width: auto;">
                 <option value="">Todas las categorías</option>
                 {% for cat in categories %}
@@ -31,8 +32,16 @@
         </form>
 
         <div>
-            <a href="{{ url_for('tasks.list_tasks', status=current_filter, category_id=current_category_id, sort_by='priority') }}" class="btn btn-sm btn-outline-primary {{ 'active' if current_sort == 'priority' else '' }}">Ordenar por Prioridad</a>
+            <a href="{{ url_for('tasks.list_tasks', status=current_filter, scope=current_scope, category_id=current_category_id, sort_by='priority') }}" class="btn btn-sm btn-outline-primary {{ 'active' if current_sort == 'priority' else '' }}">Ordenar por Prioridad</a>
         </div>
+    </div>
+
+    <!-- Ámbito de tareas (HU-10): propias vs asignadas a mí -->
+    <div class="filters-bar">
+        <span>Mostrar:</span>
+        <a href="{{ url_for('tasks.list_tasks', scope='all', status=(current_filter if current_filter != 'all' else none), sort_by=current_sort, category_id=current_category_id) }}" class="filter-btn {{ 'active' if current_scope == 'all' else '' }}">Todas</a>
+        <a href="{{ url_for('tasks.list_tasks', scope='mine', status=(current_filter if current_filter != 'all' else none), sort_by=current_sort, category_id=current_category_id) }}" class="filter-btn {{ 'active' if current_scope == 'mine' else '' }}">Creadas por mí</a>
+        <a href="{{ url_for('tasks.list_tasks', scope='assigned', status=(current_filter if current_filter != 'all' else none), sort_by=current_sort, category_id=current_category_id) }}" class="filter-btn {{ 'active' if current_scope == 'assigned' else '' }}">Asignadas a mí</a>
     </div>
 
     {% if tasks %}
@@ -64,23 +73,27 @@
                                 <div>📅 <strong>Fecha límite:</strong> {{ task.due_date.strftime('%Y-%m-%d') }}</div>
                             {% endif %}
                             <div>🕒 <strong>Creada:</strong> {{ task.created_at.strftime('%Y-%m-%d %H:%M') }} UTC</div>
-                            
-                            <!-- Prioridad -->
+                            {% if task.user_id != current_user.id %}
+                                <div><strong>Asignada por:</strong> {{ task.user.email }}</div>
+                            {% elif task.assignee %}
+                                <div><strong>Asignada a:</strong> {{ task.assignee.email }}</div>
+                            {% endif %}
                             <div style="margin-top: 0.5rem;">
-                                <strong>Prioridad:</strong> 
+                                <strong>Prioridad:</strong>
                                 <span class="badge badge-{{ 'danger' if task.priority == 'alta' else 'warning' if task.priority == 'media' else 'success' }}">
                                     {{ task.priority | capitalize }}
                                 </span>
-                                <!-- Form de cambio de prioridad -->
-                                <form method="POST" action="{{ url_for('tasks.change_priority', task_id=task.id) }}" style="display:inline-block; margin-left: 0.5rem;">
-                                    <select name="priority" onchange="this.form.submit()" class="form-control" style="display:inline-block; width:auto; height:auto; padding:0 0.2rem; font-size:0.8rem;">
-                                        <option value="alta" {% if task.priority == 'alta' %}selected{% endif %}>Alta</option>
-                                        <option value="media" {% if task.priority == 'media' %}selected{% endif %}>Media</option>
-                                        <option value="baja" {% if task.priority == 'baja' %}selected{% endif %}>Baja</option>
-                                    </select>
-                                </form>
+                                {% if task.user_id == current_user.id %}
+                                    <form method="POST" action="{{ url_for('tasks.change_priority', task_id=task.id) }}" style="display:inline-block; margin-left: 0.5rem;">
+                                        <select name="priority" onchange="this.form.submit()" class="form-control" style="display:inline-block; width:auto; height:auto; padding:0 0.2rem; font-size:0.8rem;">
+                                            <option value="alta" {% if task.priority == 'alta' %}selected{% endif %}>Alta</option>
+                                            <option value="media" {% if task.priority == 'media' %}selected{% endif %}>Media</option>
+                                            <option value="baja" {% if task.priority == 'baja' %}selected{% endif %}>Baja</option>
+                                        </select>
+                                    </form>
+                                {% endif %}
                             </div>
-                            
+
                             <!-- Categoría -->
                             <div style="margin-top: 0.5rem;">
                                 <strong>Categoría:</strong>
@@ -89,18 +102,21 @@
                                 {% else %}
                                     <span class="text-muted" style="font-size:0.9em;">Sin categoría</span>
                                 {% endif %}
-                                <form method="POST" action="{{ url_for('tasks.assign_category', task_id=task.id) }}" style="display:inline-block; margin-left: 0.5rem;">
-                                    <select name="category_id" onchange="this.form.submit()" class="form-control" style="display:inline-block; width:auto; height:auto; padding:0 0.2rem; font-size:0.8rem;">
-                                        <option value="">- Quitar -</option>
-                                        {% for cat in categories %}
-                                            <option value="{{ cat.id }}" {% if task.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </form>
+                                {% if task.user_id == current_user.id %}
+                                    <form method="POST" action="{{ url_for('tasks.assign_category', task_id=task.id) }}" style="display:inline-block; margin-left: 0.5rem;">
+                                        <select name="category_id" onchange="this.form.submit()" class="form-control" style="display:inline-block; width:auto; height:auto; padding:0 0.2rem; font-size:0.8rem;">
+                                            <option value="">- Quitar -</option>
+                                            {% for cat in categories %}
+                                                <option value="{{ cat.id }}" {% if task.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </form>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
 
+{% if task.user_id == current_user.id %}
                     <div class="task-actions">
                         <!-- Transiciones de estado permitidas (HU-03) -->
                         {% if task.status == 'pending' %}
@@ -131,7 +147,13 @@
                               onsubmit="return confirm('¿Estás seguro de que deseas eliminar esta tarea? Esta acción no se puede deshacer.');">
                             <button type="submit" class="btn btn-sm btn-danger">🗑 Eliminar</button>
                         </form>
+                        <!-- Asignación (HU-10) -->
+                        <form method="POST" action="{{ url_for('collab.assign_task', task_id=task.id) }}" style="display:inline-flex; gap:.25rem;">
+                            <input type="email" name="assignee_email" class="form-control" placeholder="correo (vacío = quitar)" value="{{ task.assignee.email if task.assignee else '' }}" style="width:200px;">
+                            <button type="submit" class="btn btn-sm btn-secondary">Asignar</button>
+                        </form>
                     </div>
+{% endif %}
                 </div>
             {% endfor %}
         </div>

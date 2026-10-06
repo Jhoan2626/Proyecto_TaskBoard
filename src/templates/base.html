@@ -16,6 +16,7 @@
                 {% if current_user %}
                     <span class="user-greeting">👤 {{ current_user.email }}</span>
                     <a href="{{ url_for('tasks.list_tasks') }}" class="nav-item">Mis Tareas</a>
+                    <a href="{{ url_for('collab.list_notifications') }}" class="nav-item">Notificaciones{% if unread_notifications %} <span class="badge badge-in_progress">{{ unread_notifications }}</span>{% endif %}</a>
                     <a href="{{ url_for('tasks.new_task') }}" class="btn btn-sm btn-primary">+ Nueva Tarea</a>
                     <a href="{{ url_for('auth.logout') }}" class="nav-item text-danger">Cerrar Sesión</a>
                 {% else %}

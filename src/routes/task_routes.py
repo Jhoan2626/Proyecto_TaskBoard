@@ -21,6 +21,7 @@ def parse_date(date_str):
 def list_tasks():
     from src.services.category_service import CategoryService
     status_filter = request.args.get("status")
+    scope = request.args.get("scope")  # Incremento 4: all (default) | mine | assigned
     sort_by = request.args.get("sort_by")
     category_id_raw = request.args.get("category_id")
     category_id = int(category_id_raw) if category_id_raw and category_id_raw.isdigit() else None
@@ -28,6 +29,7 @@ def list_tasks():
     tasks = TaskService.get_user_tasks(
         user_id=g.current_user.id,
         status_filter=status_filter,
+        scope=scope,
         sort_by=sort_by,
         category_id=category_id,
     )
@@ -37,6 +39,7 @@ def list_tasks():
         "tasks/list.html",
         tasks=tasks,
         current_filter=status_filter or "all",
+        current_scope=scope if scope in ("mine", "assigned") else "all",
         allowed_statuses=Task.ALLOWED_STATUSES,
         categories=categories,
         current_category_id=category_id,
@@ -279,4 +282,3 @@ def assign_category(task_id):
 
     flash('Categoría actualizada.', 'success')
     return redirect(url_for('tasks.list_tasks'))
-

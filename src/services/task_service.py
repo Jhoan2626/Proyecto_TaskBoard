@@ -1,4 +1,5 @@
 from datetime import date, datetime, timezone
+from sqlalchemy import or_
 from src.models import db, Task, AuditLog
 from src.services.audit_service import AuditService
 
@@ -57,13 +58,22 @@ class TaskService:
         status_filter: str | None = None,
         sort_by: str | None = None,
         category_id: int | None = None,
-    ) -> list:
+        scope: str | None = None,
+    ) -> list[Task]:
         """
         Lista las tareas activas del usuario autenticado (HU-02).
-        Excluye eliminadas (HU-05). Acepta filtros de estado (HU-02),
-        categoría (HU-08) y ordenamiento por prioridad (HU-07).
+        Incluye tareas propias y asignadas (HU-10), excluyendo eliminadas (HU-05).
+        Acepta filtros de estado (HU-02), categoría (HU-08) y prioridad (HU-07).
+        `scope`: 'mine' (solo propias), 'assigned' (solo asignadas a mí); otro = ambas.
         """
-        query = Task.query.filter_by(user_id=user_id).filter(Task.deleted_at == None)  # noqa: E711
+        if scope == "mine":
+            ownership = Task.user_id == user_id
+        elif scope == "assigned":
+            ownership = Task.assignee_id == user_id
+        else:
+            ownership = or_(Task.user_id == user_id, Task.assignee_id == user_id)
+
+        query = Task.query.filter(ownership).filter(Task.deleted_at == None)  # noqa: E711
 
         if status_filter and status_filter in Task.ALLOWED_STATUSES:
             query = query.filter_by(status=status_filter)
@@ -73,7 +83,7 @@ class TaskService:
 
         tasks = query.order_by(Task.created_at.desc()).all()
 
-        if sort_by == 'priority':
+        if sort_by == "priority":
             tasks = sorted(tasks, key=lambda t: Task.PRIORITY_SORT_KEY.get(t.priority, 99))
 
         return tasks
@@ -295,4 +305,3 @@ class TaskService:
         task.category_id = category_id
         db.session.commit()
         return task, None
-
