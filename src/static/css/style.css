@@ -262,6 +262,26 @@ body {
     margin-bottom: 0.5rem;
 }
 
+.task-drag-handle {
+    flex: 0 0 auto;
+    margin-right: 0.5rem;
+    padding: 0.15rem 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: #f8fafc;
+    color: var(--muted);
+    cursor: grab;
+    touch-action: none;
+}
+
+.task-drag-handle:active {
+    cursor: grabbing;
+}
+
+.task-card-dragging {
+    opacity: 0.45;
+}
+
 .task-title {
     font-size: 1.1rem;
     color: var(--dark);

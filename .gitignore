@@ -10,6 +10,8 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+node_modules/
+*.log
 
 # Database & Instances
 instance/
@@ -17,11 +19,14 @@ instance/
 *.sqlite3
 
 # Environment & IDE
-.env
-.env.*
+.env*
 !.env.example
 .vscode/
 .idea/
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
 
 # Testing & Coverage
 .pytest_cache/
