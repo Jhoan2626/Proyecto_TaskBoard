@@ -437,3 +437,232 @@ def test_reset_password_short_password(app):
         success, error = AuthService.reset_password(token_row.token, "1234567")
         assert success is False
         assert error is not None
+
+# =============================================================================
+# Incremento 3 — HU-07: Prioridad de tareas
+# =============================================================================
+
+def _create_test_user(email):
+    from src.services.auth_service import AuthService
+    user, _ = AuthService.register_user(email, "pass1234")
+    return user
+
+def test_task_default_priority(app):
+    """Nueva tarea tiene prioridad 'media' por defecto."""
+    with app.app_context():
+        user = _create_test_user(email='prio1@test.com')
+        task, _ = TaskService.create_task(user_id=user.id, title='Tarea default prio')
+        assert task.priority == 'media'
+
+
+def test_update_task_priority_success(app):
+    """Cambiar prioridad registra auditoría TASK_PRIORITY_CHANGED."""
+    with app.app_context():
+        user = _create_test_user(email='prio2@test.com')
+        task, _ = TaskService.create_task(user_id=user.id, title='Tarea prio')
+        updated, error = TaskService.update_task_priority(user.id, task.id, 'alta')
+        assert error is None
+        assert updated.priority == 'alta'
+        log = AuditLog.query.filter_by(
+            entity_id=task.id,
+            action=AuditLog.ACTION_TASK_PRIORITY_CHANGED
+        ).first()
+        assert log is not None
+
+
+def test_update_task_priority_invalid_value(app):
+    """Valor inválido de prioridad devuelve error."""
+    with app.app_context():
+        user = _create_test_user(email='prio3@test.com')
+        task, _ = TaskService.create_task(user_id=user.id, title='Tarea prio invalida')
+        updated, error = TaskService.update_task_priority(user.id, task.id, 'urgente')
+        assert updated is None
+        assert error is not None
+        assert 'Prioridad' in error or 'prioridad' in error
+
+
+def test_update_priority_deleted_task_fails(app):
+    """No se puede cambiar prioridad de tarea eliminada."""
+    with app.app_context():
+        user = _create_test_user(email='prio4@test.com')
+        task, _ = TaskService.create_task(user_id=user.id, title='Tarea eliminada prio')
+        TaskService.delete_task(user.id, task.id)
+        updated, error = TaskService.update_task_priority(user.id, task.id, 'alta')
+        assert updated is None
+        assert error is not None
+
+
+def test_sort_tasks_by_priority(app):
+    """Ordenamiento por prioridad devuelve alta→media→baja."""
+    with app.app_context():
+        user = _create_test_user(email='prio5@test.com')
+        t_baja, _ = TaskService.create_task(user_id=user.id, title='Baja')
+        TaskService.update_task_priority(user.id, t_baja.id, 'baja')
+        t_alta, _ = TaskService.create_task(user_id=user.id, title='Alta')
+        TaskService.update_task_priority(user.id, t_alta.id, 'alta')
+        t_media, _ = TaskService.create_task(user_id=user.id, title='Media')
+        # media es default
+
+        tasks = TaskService.get_user_tasks(user.id, sort_by='priority')
+        priorities = [t.priority for t in tasks]
+        # alta debe ir antes que media, media antes que baja
+        idx_alta = priorities.index('alta')
+        idx_media = priorities.index('media')
+        idx_baja = priorities.index('baja')
+        assert idx_alta < idx_media < idx_baja
+
+# =============================================================================
+# Incremento 3 — HU-08: Categorías
+# =============================================================================
+
+def test_create_category_success(app):
+    """Categoría creada correctamente asociada al usuario."""
+    with app.app_context():
+        from src.services.category_service import CategoryService
+        user = _create_test_user(email='cat1@test.com')
+        cat, error = CategoryService.create_category(user.id, 'Trabajo')
+        assert error is None
+        assert cat is not None
+        assert cat.name == 'Trabajo'
+        assert cat.user_id == user.id
+
+
+def test_create_category_duplicate_name_fails(app):
+    """Nombre duplicado por usuario devuelve error."""
+    with app.app_context():
+        from src.services.category_service import CategoryService
+        user = _create_test_user(email='cat2@test.com')
+        CategoryService.create_category(user.id, 'Personal')
+        cat2, error = CategoryService.create_category(user.id, 'Personal')
+        assert cat2 is None
+        assert error is not None
+
+
+def test_create_category_empty_name_fails(app):
+    """Nombre vacío devuelve error."""
+    with app.app_context():
+        from src.services.category_service import CategoryService
+        user = _create_test_user(email='cat3@test.com')
+        cat, error = CategoryService.create_category(user.id, '   ')
+        assert cat is None
+        assert error is not None
+
+
+def test_delete_category_does_not_delete_tasks(app):
+    """Eliminar categoría desvincula sus tareas (category_id=None), no las borra."""
+    with app.app_context():
+        from src.services.category_service import CategoryService
+        from src.models import Task
+        user = _create_test_user(email='cat4@test.com')
+        cat, _ = CategoryService.create_category(user.id, 'Borrable')
+        task, _ = TaskService.create_task(user_id=user.id, title='Tarea en categoría')
+        TaskService.assign_category(user.id, task.id, cat.id)
+
+        # Verificar que la tarea tiene la categoría
+        from src.models import db
+        db.session.refresh(task)
+        assert task.category_id == cat.id
+
+        # Eliminar categoría
+        _, error = CategoryService.delete_category(user.id, cat.id)
+        assert error is None
+
+        # La tarea debe seguir existiendo con category_id=None
+        db.session.refresh(task)
+        assert task.category_id is None
+        assert task.deleted_at is None
+
+
+def test_assign_task_to_category_success(app):
+    """Asignación correcta entre tarea y categoría del mismo usuario."""
+    with app.app_context():
+        from src.services.category_service import CategoryService
+        user = _create_test_user(email='cat5@test.com')
+        cat, _ = CategoryService.create_category(user.id, 'MiCategoria')
+        task, _ = TaskService.create_task(user_id=user.id, title='Tarea para asignar')
+        updated, error = TaskService.assign_category(user.id, task.id, cat.id)
+        assert error is None
+        assert updated.category_id == cat.id
+
+
+def test_assign_task_to_foreign_category_fails(app):
+    """Categoría de otro usuario → error de autorización."""
+    with app.app_context():
+        from src.services.category_service import CategoryService
+        user1 = _create_test_user(email='cat6a@test.com')
+        user2 = _create_test_user(email='cat6b@test.com')
+        cat_user2, _ = CategoryService.create_category(user2.id, 'CatDeUser2')
+        task_user1, _ = TaskService.create_task(user_id=user1.id, title='Tarea de user1')
+
+        updated, error = TaskService.assign_category(user1.id, task_user1.id, cat_user2.id)
+        assert updated is None
+        assert error is not None
+
+
+def test_filter_tasks_by_category(app):
+    """Filtrado por categoría retorna solo las tareas de esa categoría."""
+    with app.app_context():
+        from src.services.category_service import CategoryService
+        user = _create_test_user(email='cat7@test.com')
+        cat, _ = CategoryService.create_category(user.id, 'Filtrada')
+        t1, _ = TaskService.create_task(user_id=user.id, title='En categoría')
+        t2, _ = TaskService.create_task(user_id=user.id, title='Sin categoría')
+        TaskService.assign_category(user.id, t1.id, cat.id)
+
+        tasks = TaskService.get_user_tasks(user.id, category_id=cat.id)
+        ids = [t.id for t in tasks]
+        assert t1.id in ids
+        assert t2.id not in ids
+
+# =============================================================================
+# Incremento 3 — HU-09: Tareas vencidas (is_overdue)
+# =============================================================================
+
+def test_is_overdue_pending_past_due(app):
+    """Tarea pending con due_date en el pasado → is_overdue=True."""
+    from datetime import date, timedelta
+    with app.app_context():
+        user = _create_test_user(email='ov1@test.com')
+        past_date = date.today() - timedelta(days=1)
+        task, _ = TaskService.create_task(user_id=user.id, title='Vencida', due_date=past_date)
+        assert task.is_overdue is True
+
+
+def test_is_overdue_completed_task(app):
+    """Tarea completed con due_date pasada → is_overdue=False."""
+    from datetime import date, timedelta
+    with app.app_context():
+        user = _create_test_user(email='ov2@test.com')
+        past_date = date.today() - timedelta(days=2)
+        task, _ = TaskService.create_task(user_id=user.id, title='Completada vencida', due_date=past_date)
+        TaskService.update_task_status(user.id, task.id, 'in_progress')
+        TaskService.update_task_status(user.id, task.id, 'completed')
+        assert task.is_overdue is False
+
+
+def test_is_overdue_no_due_date(app):
+    """Tarea sin due_date → is_overdue=False."""
+    with app.app_context():
+        user = _create_test_user(email='ov3@test.com')
+        task, _ = TaskService.create_task(user_id=user.id, title='Sin fecha')
+        assert task.is_overdue is False
+
+
+def test_is_overdue_due_today(app):
+    """Tarea con due_date=hoy → is_overdue=False (vence al final del día)."""
+    from datetime import date
+    with app.app_context():
+        user = _create_test_user(email='ov4@test.com')
+        task, _ = TaskService.create_task(user_id=user.id, title='Vence hoy', due_date=date.today())
+        assert task.is_overdue is False
+
+
+def test_is_overdue_in_progress_past_due(app):
+    """Tarea in_progress con due_date pasada → is_overdue=True."""
+    from datetime import date, timedelta
+    with app.app_context():
+        user = _create_test_user(email='ov5@test.com')
+        past_date = date.today() - timedelta(days=3)
+        task, _ = TaskService.create_task(user_id=user.id, title='En progreso vencida', due_date=past_date)
+        TaskService.update_task_status(user.id, task.id, 'in_progress')
+        assert task.is_overdue is True

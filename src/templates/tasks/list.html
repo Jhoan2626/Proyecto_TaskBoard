@@ -9,13 +9,30 @@
         <a href="{{ url_for('tasks.new_task') }}" class="btn btn-primary">+ Nueva Tarea</a>
     </div>
 
-    <!-- Barra de Filtros (HU-02) -->
-    <div class="filters-bar">
-        <span>Filtrar por estado:</span>
-        <a href="{{ url_for('tasks.list_tasks') }}" class="filter-btn {{ 'active' if current_filter == 'all' else '' }}">Todas</a>
-        <a href="{{ url_for('tasks.list_tasks', status='pending') }}" class="filter-btn {{ 'active' if current_filter == 'pending' else '' }}">Pendientes</a>
-        <a href="{{ url_for('tasks.list_tasks', status='in_progress') }}" class="filter-btn {{ 'active' if current_filter == 'in_progress' else '' }}">En Progreso</a>
-        <a href="{{ url_for('tasks.list_tasks', status='completed') }}" class="filter-btn {{ 'active' if current_filter == 'completed' else '' }}">Completadas</a>
+    <!-- Barra de Filtros (HU-02, HU-07, HU-08) -->
+    <div class="filters-bar" style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+        <div>
+            <span>Filtrar por estado:</span>
+            <a href="{{ url_for('tasks.list_tasks', status='all', sort_by=current_sort, category_id=current_category_id) }}" class="filter-btn {{ 'active' if current_filter == 'all' else '' }}">Todas</a>
+            <a href="{{ url_for('tasks.list_tasks', status='pending', sort_by=current_sort, category_id=current_category_id) }}" class="filter-btn {{ 'active' if current_filter == 'pending' else '' }}">Pendientes</a>
+            <a href="{{ url_for('tasks.list_tasks', status='in_progress', sort_by=current_sort, category_id=current_category_id) }}" class="filter-btn {{ 'active' if current_filter == 'in_progress' else '' }}">En Progreso</a>
+            <a href="{{ url_for('tasks.list_tasks', status='completed', sort_by=current_sort, category_id=current_category_id) }}" class="filter-btn {{ 'active' if current_filter == 'completed' else '' }}">Completadas</a>
+        </div>
+        
+        <form method="GET" action="{{ url_for('tasks.list_tasks') }}" style="display: flex; gap: 0.5rem;">
+            <input type="hidden" name="status" value="{{ current_filter }}">
+            <input type="hidden" name="sort_by" value="{{ current_sort }}">
+            <select name="category_id" onchange="this.form.submit()" class="form-control" style="width: auto;">
+                <option value="">Todas las categorías</option>
+                {% for cat in categories %}
+                    <option value="{{ cat.id }}" {% if current_category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+
+        <div>
+            <a href="{{ url_for('tasks.list_tasks', status=current_filter, category_id=current_category_id, sort_by='priority') }}" class="btn btn-sm btn-outline-primary {{ 'active' if current_sort == 'priority' else '' }}">Ordenar por Prioridad</a>
+        </div>
     </div>
 
     {% if tasks %}
@@ -24,7 +41,12 @@
                 <div class="task-card">
                     <div>
                         <div class="task-header">
-                            <span class="task-title">{{ task.title }}</span>
+                            <span class="task-title">
+                                {{ task.title }}
+                                {% if task.is_overdue %}
+                                    <span class="badge badge-danger" style="margin-left: 0.5rem; font-size: 0.8em;">⚠️ Vencida</span>
+                                {% endif %}
+                            </span>
                             <span class="badge badge-{{ task.status }}">
                                 {% if task.status == 'pending' %}Pendiente
                                 {% elif task.status == 'in_progress' %}En Progreso
@@ -42,6 +64,40 @@
                                 <div>📅 <strong>Fecha límite:</strong> {{ task.due_date.strftime('%Y-%m-%d') }}</div>
                             {% endif %}
                             <div>🕒 <strong>Creada:</strong> {{ task.created_at.strftime('%Y-%m-%d %H:%M') }} UTC</div>
+                            
+                            <!-- Prioridad -->
+                            <div style="margin-top: 0.5rem;">
+                                <strong>Prioridad:</strong> 
+                                <span class="badge badge-{{ 'danger' if task.priority == 'alta' else 'warning' if task.priority == 'media' else 'success' }}">
+                                    {{ task.priority | capitalize }}
+                                </span>
+                                <!-- Form de cambio de prioridad -->
+                                <form method="POST" action="{{ url_for('tasks.change_priority', task_id=task.id) }}" style="display:inline-block; margin-left: 0.5rem;">
+                                    <select name="priority" onchange="this.form.submit()" class="form-control" style="display:inline-block; width:auto; height:auto; padding:0 0.2rem; font-size:0.8rem;">
+                                        <option value="alta" {% if task.priority == 'alta' %}selected{% endif %}>Alta</option>
+                                        <option value="media" {% if task.priority == 'media' %}selected{% endif %}>Media</option>
+                                        <option value="baja" {% if task.priority == 'baja' %}selected{% endif %}>Baja</option>
+                                    </select>
+                                </form>
+                            </div>
+                            
+                            <!-- Categoría -->
+                            <div style="margin-top: 0.5rem;">
+                                <strong>Categoría:</strong>
+                                {% if task.category %}
+                                    <span class="badge badge-info">{{ task.category.name }}</span>
+                                {% else %}
+                                    <span class="text-muted" style="font-size:0.9em;">Sin categoría</span>
+                                {% endif %}
+                                <form method="POST" action="{{ url_for('tasks.assign_category', task_id=task.id) }}" style="display:inline-block; margin-left: 0.5rem;">
+                                    <select name="category_id" onchange="this.form.submit()" class="form-control" style="display:inline-block; width:auto; height:auto; padding:0 0.2rem; font-size:0.8rem;">
+                                        <option value="">- Quitar -</option>
+                                        {% for cat in categories %}
+                                            <option value="{{ cat.id }}" {% if task.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </form>
+                            </div>
                         </div>
                     </div>
 
