@@ -52,20 +52,31 @@ class TaskService:
         return task, None
 
     @staticmethod
-    def get_user_tasks(user_id: int, status_filter: str | None = None) -> list[Task]:
+    def get_user_tasks(
+        user_id: int,
+        status_filter: str | None = None,
+        sort_by: str | None = None,
+        category_id: int | None = None,
+    ) -> list:
         """
-        Lista las tareas activas pertenecientes exclusivamente al usuario autenticado (HU-02).
-        Excluye tareas eliminadas lógicamente (deleted_at IS NOT NULL) — HU-05.
-        Permite filtrado por estado.
+        Lista las tareas activas del usuario autenticado (HU-02).
+        Excluye eliminadas (HU-05). Acepta filtros de estado (HU-02),
+        categoría (HU-08) y ordenamiento por prioridad (HU-07).
         """
         query = Task.query.filter_by(user_id=user_id).filter(Task.deleted_at == None)  # noqa: E711
 
         if status_filter and status_filter in Task.ALLOWED_STATUSES:
             query = query.filter_by(status=status_filter)
 
-        return query.order_by(Task.created_at.desc()).all()
+        if category_id is not None:
+            query = query.filter_by(category_id=category_id)
 
+        tasks = query.order_by(Task.created_at.desc()).all()
 
+        if sort_by == 'priority':
+            tasks = sorted(tasks, key=lambda t: Task.PRIORITY_SORT_KEY.get(t.priority, 99))
+
+        return tasks
     @staticmethod
     def get_task_by_id(user_id: int, task_id: int) -> tuple[Task | None, str | None]:
         """
@@ -217,3 +228,71 @@ class TaskService:
         )
 
         return task, None
+
+    # -------------------------------------------------------------------------
+    # Incremento 3 — HU-07: Prioridad de tareas
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def update_task_priority(
+        user_id: int,
+        task_id: int,
+        priority: str,
+    ) -> tuple:
+        """
+        Cambia la prioridad de una tarea propia (HU-07).
+        Registra auditoría con TASK_PRIORITY_CHANGED (Principio VIII).
+        """
+        if priority not in Task.VALID_PRIORITIES:
+            return None, (
+                f"Prioridad inválida '{priority}'. "
+                f"Valores permitidos: {', '.join(Task.VALID_PRIORITIES)}."
+            )
+
+        task, error = TaskService.get_task_by_id(user_id, task_id)
+        if error:
+            return None, error
+
+        old_priority = task.priority
+        task.priority = priority
+        db.session.commit()
+
+        AuditService.log_event(
+            actor_id=user_id,
+            action=AuditLog.ACTION_TASK_PRIORITY_CHANGED,
+            entity_type='Task',
+            entity_id=task.id,
+            details={'old_priority': old_priority, 'new_priority': priority},
+        )
+
+        return task, None
+
+    # -------------------------------------------------------------------------
+    # Incremento 3 — HU-08: Categorías de tareas
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def assign_category(
+        user_id: int,
+        task_id: int,
+        category_id: int | None,
+    ) -> tuple:
+        """
+        Asigna o desasigna una categoría a una tarea propia (HU-08).
+        Si category_id es None, desasigna la categoría actual.
+        Verifica que la categoría pertenezca al mismo usuario (Principio VII).
+        """
+        task, error = TaskService.get_task_by_id(user_id, task_id)
+        if error:
+            return None, error
+
+        if category_id is not None:
+            from src.models import Category
+            cat = db.session.get(Category, category_id)
+            if not cat or cat.user_id != user_id:
+                return None, 'Categoría no válida o no pertenece al usuario.'
+
+        task.category_id = category_id
+        db.session.commit()
+        return task, None
+

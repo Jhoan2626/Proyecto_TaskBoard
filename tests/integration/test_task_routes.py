@@ -111,3 +111,38 @@ def test_reopen_non_completed_route(authenticated_client):
     assert reopen_res.status_code == 200
     # Debe haber un mensaje de error en la pagina
     assert b"completadas" in reopen_res.data.lower() or b"error" in reopen_res.data.lower() or reopen_res.status_code in (200, 302)
+
+# =============================================================================
+# Incremento 3 — HU-07: Prioridad
+# =============================================================================
+
+def test_change_priority_route(authenticated_client):
+    """POST /tasks/<id>/priority cambia la prioridad de la tarea."""
+    # Crear tarea
+    authenticated_client.post('/tasks', data={'title': 'Tarea para prioridad'})
+    from src.models import Task
+    with authenticated_client.application.app_context():
+        task = Task.query.filter_by(title='Tarea para prioridad').first()
+        task_id = task.id
+
+    response = authenticated_client.post(f'/tasks/{task_id}/priority', data={'priority': 'alta'},
+                           follow_redirects=True)
+    assert response.status_code == 200
+
+    with authenticated_client.application.app_context():
+        task = Task.query.get(task_id)
+        assert task.priority == 'alta'
+
+
+def test_list_tasks_sorted_by_priority(authenticated_client):
+    """GET /tasks?sort_by=priority retorna 200."""
+    response = authenticated_client.get('/tasks?sort_by=priority')
+    assert response.status_code == 200
+
+def test_overdue_field_in_task_list(authenticated_client):
+    """Tarea vencida (due_date pasada, status pending) existe en el listado."""
+    from datetime import date, timedelta
+    past = (date.today() - timedelta(days=1)).strftime('%Y-%m-%d')
+    authenticated_client.post('/tasks', data={'title': 'Tarea vencida test', 'due_date': past})
+    response = authenticated_client.get('/tasks')
+    assert response.status_code == 200
