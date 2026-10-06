@@ -15,6 +15,7 @@ class AuditLog(db.Model):
     # Incremento 2
     ACTION_TASK_DELETED = "TASK_DELETED"      # HU-05: soft delete
     ACTION_TASK_REOPENED = "TASK_REOPENED"    # HU-06: reapertura explícita (distinto de STATUS_CHANGED)
+    ACTION_TASK_PRIORITY_CHANGED = "TASK_PRIORITY_CHANGED"  # HU-07
     # Incremento 4
     ACTION_TASK_ASSIGNED = "TASK_ASSIGNED"    # HU-10: asignación / reasignación / desasignación
 

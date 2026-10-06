@@ -19,20 +19,32 @@ def parse_date(date_str):
 @task_bp.route("", methods=["GET"])
 @login_required
 def list_tasks():
+    from src.services.category_service import CategoryService
     status_filter = request.args.get("status")
     scope = request.args.get("scope")  # Incremento 4: all (default) | mine | assigned
+    sort_by = request.args.get("sort_by")
+    category_id_raw = request.args.get("category_id")
+    category_id = int(category_id_raw) if category_id_raw and category_id_raw.isdigit() else None
+
     tasks = TaskService.get_user_tasks(
-        user_id=g.current_user.id, status_filter=status_filter, scope=scope
+        user_id=g.current_user.id,
+        status_filter=status_filter,
+        scope=scope,
+        sort_by=sort_by,
+        category_id=category_id,
     )
+    categories = CategoryService.get_user_categories(g.current_user.id)
+
     return render_template(
         "tasks/list.html",
         tasks=tasks,
         current_filter=status_filter or "all",
         current_scope=scope if scope in ("mine", "assigned") else "all",
         allowed_statuses=Task.ALLOWED_STATUSES,
+        categories=categories,
+        current_category_id=category_id,
+        current_sort=sort_by or "",
     )
-
-
 @task_bp.route("/new", methods=["GET"])
 @login_required
 def new_task():
@@ -196,3 +208,77 @@ def reopen_task(task_id):
 
     flash("Tarea reabierta y marcada como en progreso.", "success")
     return redirect(url_for("tasks.list_tasks"))
+
+# =============================================================================
+# Incremento 3 — HU-07: Cambio de prioridad
+# =============================================================================
+
+@task_bp.route('/<int:task_id>/priority', methods=['POST'])
+@login_required
+def change_priority(task_id):
+    """Cambia la prioridad de una tarea propia (HU-07)."""
+    priority = None
+    if request.is_json:
+        data = request.get_json() or {}
+        priority = data.get('priority')
+    elif request.form:
+        priority = request.form.get('priority')
+
+    task, error = TaskService.update_task_priority(
+        user_id=g.current_user.id,
+        task_id=task_id,
+        priority=priority,
+    )
+
+    if error:
+        if request.is_json:
+            return jsonify({'error': error}), 400
+        flash(error, 'danger')
+        return redirect(url_for('tasks.list_tasks'))
+
+    if request.is_json:
+        return jsonify({'message': 'Prioridad actualizada', 'priority': task.priority}), 200
+
+    flash(f"Prioridad actualizada a '{task.priority}'.", 'success')
+    return redirect(url_for('tasks.list_tasks'))
+
+# =============================================================================
+# Incremento 3 — HU-08: Asignar categoría a tarea
+# =============================================================================
+
+@task_bp.route('/<int:task_id>/category', methods=['POST'])
+@login_required
+def assign_category(task_id):
+    """Asigna o desasigna una categoría a una tarea propia (HU-08)."""
+    category_id = None
+    if request.is_json:
+        data = request.get_json() or {}
+        raw = data.get('category_id')
+    elif request.form:
+        raw = request.form.get('category_id')
+    else:
+        raw = None
+
+    if raw and str(raw).strip():
+        try:
+            category_id = int(raw)
+        except (ValueError, TypeError):
+            category_id = None
+
+    task, error = TaskService.assign_category(
+        user_id=g.current_user.id,
+        task_id=task_id,
+        category_id=category_id,
+    )
+
+    if error:
+        if request.is_json:
+            return jsonify({'error': error}), 400
+        flash(error, 'danger')
+        return redirect(url_for('tasks.list_tasks'))
+
+    if request.is_json:
+        return jsonify({'message': 'Categoría asignada'}), 200
+
+    flash('Categoría actualizada.', 'success')
+    return redirect(url_for('tasks.list_tasks'))

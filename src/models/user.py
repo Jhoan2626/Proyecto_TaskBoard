@@ -22,6 +22,7 @@ class User(db.Model):
         cascade="all, delete-orphan",
         lazy="dynamic",
     )
+    categories = db.relationship('Category', back_populates='user', lazy=True)
 
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)
